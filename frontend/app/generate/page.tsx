@@ -147,7 +147,7 @@ function GenerationInner() {
             <div className="mb-1 text-xs font-semibold text-red-400 uppercase tracking-wide">Backend error</div>
             <div className="text-sm text-red-300/80">{error}</div>
             <div className="mt-3 text-xs text-white/30">
-              Make sure the FastAPI backend is running on <code className="text-white/50">http://localhost:8000</code>
+              Make sure the FastAPI backend is running on <code className="text-white/50">{process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000"}</code>
             </div>
           </div>
         )}

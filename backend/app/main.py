@@ -1,5 +1,9 @@
 from contextlib import asynccontextmanager
 from uuid import uuid4
+import os
+from dotenv import load_dotenv
+
+load_dotenv()
 
 from fastapi import Depends, FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
