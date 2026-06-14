@@ -61,6 +61,7 @@ Render is the recommended platform for hosting the FastAPI backend web service.
 | `GEMINI_API_KEY` | Google Gemini API Key | `AIzaSy...` |
 | `ALLOWED_ORIGINS` | Permitted origins for CORS | `https://your-app.vercel.app` |
 | `ENVIRONMENT` | Deployment environment identifier | `production` |
+| `PYTHON_VERSION` | Stable Python version for dependency compatibility | `3.11.10` |
 
 ---
 
