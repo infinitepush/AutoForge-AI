@@ -21,15 +21,23 @@ async def lifespan(_: FastAPI):
 
 
 app = FastAPI(title="AutoForge AI API", version="0.1.0", lifespan=lifespan)
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=[
+# Compute allowed origins from env (comma‑separated) or fallback to dev origins
+env_origins = os.getenv("ALLOWED_ORIGINS")
+if env_origins:
+    origins = [o.strip() for o in env_origins.split(",")]
+else:
+    origins = [
         "http://localhost:3000",
         "http://127.0.0.1:3000",
         "http://localhost:3001",
         "http://127.0.0.1:3001",
-    ],
-    allow_origin_regex=r"https?://(localhost|127\.0\.0\.1)(:\d+)?",
+    ]
+# Log the origins for debugging
+print("[CORS] Allowed origins:", origins)
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
