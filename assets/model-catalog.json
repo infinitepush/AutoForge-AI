@@ -13,7 +13,7 @@
     "name": "Mahindra Thar",
     "vehicle_type": "SUV",
     "source": "C:/Users/LENOVO/Desktop/Mahindra Thar 3D Model.blend",
-    "public_model": "/models/mahindra-thar.glb",
+    "public_model": "/models/range-rover-suv.glb",
     "tags": ["offroad", "rugged", "adventure"],
     "base_price": 42000
   },
@@ -22,7 +22,7 @@
     "name": "Mercedes Sedan",
     "vehicle_type": "Sedan",
     "source": "C:/Users/LENOVO/Desktop/final mercedes.blend",
-    "public_model": "/models/final-mercedes.glb",
+    "public_model": "/models/range-rover-suv.glb",
     "tags": ["luxury", "futuristic", "executive", "electric"],
     "base_price": 74500
   },
@@ -31,7 +31,7 @@
     "name": "Range Rover SE",
     "vehicle_type": "Sports Car",
     "source": "C:/Users/LENOVO/Desktop/Rover SE.blend",
-    "public_model": "/models/rover-se.glb",
+    "public_model": "/models/range-rover-suv.glb",
     "tags": ["sports", "aggressive", "performance"],
     "base_price": 96500
   }

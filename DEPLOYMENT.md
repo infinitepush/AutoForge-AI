@@ -68,7 +68,7 @@ Render is the recommended platform for hosting the FastAPI backend web service.
 
 ### 1. 3D Model Loading fails (404 Error)
 - **Problem**: Rims load, but the rest of the 3D model does not render, or there is a 404 in the console.
-- **Solution**: Check that all GLB assets (`mahindra-thar.glb`, `final-mercedes.glb`, `rover-se.glb`, `range-rover-suv.glb`) exist in your repository under `frontend/public/models/`.
+- **Solution**: Check that the main GLB asset (`range-rover-suv.glb`) exists in your repository under `frontend/public/models/`.
 
 ### 2. CORS Blocked on Prompt Submission
 - **Problem**: Submitting prompts displays "Failed to fetch" or console shows CORS violations.

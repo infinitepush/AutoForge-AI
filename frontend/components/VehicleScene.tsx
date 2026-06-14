@@ -970,9 +970,6 @@ function RangeRoverModel({
 }
 
 useGLTF.preload("/models/range-rover-suv.glb");
-useGLTF.preload("/models/mahindra-thar.glb");
-useGLTF.preload("/models/final-mercedes.glb");
-useGLTF.preload("/models/rover-se.glb");
 
 // ─── Loading placeholder ─────────────────────────────────────────────────────
 function Loader() {
