@@ -1,5 +1,20 @@
 import { VehicleConfiguration, VehicleProject } from "./types";
-export const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+let baseUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+
+if (typeof window !== "undefined") {
+  const hostname = window.location.hostname;
+  if (
+    hostname === "localhost" ||
+    hostname === "127.0.0.1" ||
+    hostname.startsWith("192.168.") ||
+    hostname.startsWith("10.") ||
+    hostname.endsWith(".local")
+  ) {
+    baseUrl = "http://localhost:8000";
+  }
+}
+
+export const API_URL = baseUrl;
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
   const response = await fetch(`${API_URL}${path}`, {

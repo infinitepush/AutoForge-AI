@@ -25,20 +25,9 @@ const TIRE_MATS   = ["guma_procedural"];
 const GENERIC_GLASS_KEYWORDS = ["glass", "window", "windshield", "windscreen", "glazing", "windsheld", "staklo", "vidro", "cam", "verre", "glas"];
 const GENERIC_WHEEL_KEYWORDS = ["wheel", "tire", "tyre", "rim", "felna", "tocak", "felge", "jante", "ruota", "guma"];
 const GENERIC_SEAT_KEYWORDS  = ["seat", "interior", "upholstery", "leather", "fabric", "sjedista", "sedadlo"];
-const GENERIC_LIGHT_KEYWORDS = ["light", "lamp", "headlight", "taillight", "lens", "svijetlo", "phare"];
+const GENERIC_TIRE_KEYWORDS  = ["tire", "tyre", "guma", "rubber", "tread"];
 
-function isGlassMesh(name: string, matName: string): boolean {
-  const n = (name + " " + matName).toLowerCase();
-  return GENERIC_GLASS_KEYWORDS.some(k => n.includes(k));
-}
-function isWheelMesh(name: string, matName: string): boolean {
-  const n = (name + " " + matName).toLowerCase();
-  return GENERIC_WHEEL_KEYWORDS.some(k => n.includes(k));
-}
-function isSeatMesh(name: string, matName: string): boolean {
-  const n = (name + " " + matName).toLowerCase();
-  return GENERIC_SEAT_KEYWORDS.some(k => n.includes(k));
-}
+
 
 const UPHOLSTERY_COLORS: Record<string, string> = {
   black:    "#141418",
@@ -496,8 +485,8 @@ function SeatRows({
   );
 }
 
-// ─── Generic Model component (works for ANY GLB) ────────────────────────────
-function VehicleModel({
+// ─── Range Rover specific model (uses named Bosnian mesh names) ────────────
+function RangeRoverModel({
   modelUrl,
   config,
   viewMode,
@@ -777,51 +766,6 @@ function VehicleModel({
     });
   }, [scene, config.color, viewMode, roughness, metalness, clearcoat, glassOpac, rimColor, seatColor, trimColor]);
 
-  // ─── Generic material fallback (for non-Range Rover models) ────────────────
-  // Applies body color to all meshes that aren't glass / wheel / seat
-  useEffect(() => {
-    if (!scene) return;
-    scene.traverse((obj) => {
-      if (!(obj instanceof THREE.Mesh)) return;
-      const name = obj.name.toLowerCase();
-      const mats = Array.isArray(obj.material) ? obj.material : [obj.material];
-      mats.forEach((mat) => {
-        if (!(mat instanceof THREE.MeshStandardMaterial || mat instanceof THREE.MeshPhysicalMaterial)) return;
-        const matName = mat.name.toLowerCase();
-        // Only apply generic logic if NOT a named Range Rover material
-        const isNamedRoverMat = [...BODY_MATS, ...RIM_MATS, ...GLASS_MATS, ...SEAT_MATS, ...BLACK_MATS, ...TIRE_MATS].includes(mat.name);
-        if (isNamedRoverMat) return;
-
-        if (isGlassMesh(name, matName)) {
-          mat.transparent = true;
-          mat.opacity = viewMode === "engineering" ? 0.01 : glassOpac;
-          mat.roughness = 0.05;
-          mat.needsUpdate = true;
-        } else if (isWheelMesh(name, matName)) {
-          mat.opacity = viewMode === "engineering" ? 0.04 : 1.0;
-          mat.transparent = viewMode === "engineering";
-          mat.needsUpdate = true;
-        } else if (isSeatMesh(name, matName)) {
-          mat.color.set(seatColor);
-          mat.opacity = viewMode === "engineering" ? 0.0 : 1.0;
-          mat.transparent = viewMode === "engineering";
-          mat.needsUpdate = true;
-        } else {
-          // Treat as body paint
-          mat.color.set(config.color);
-          mat.roughness  = viewMode === "engineering" ? 0.95 : roughness;
-          mat.metalness  = viewMode === "engineering" ? 0.05 : metalness;
-          mat.transparent = viewMode === "engineering";
-          mat.opacity = viewMode === "engineering" ? 0.04 : 1.0;
-          if (mat instanceof THREE.MeshPhysicalMaterial) {
-            mat.clearcoat = viewMode === "engineering" ? 0 : clearcoat;
-          }
-          mat.needsUpdate = true;
-        }
-      });
-    });
-  }, [scene, config.color, viewMode, roughness, metalness, clearcoat, glassOpac, seatColor]);
-
   // Center model and set static details
   useEffect(() => {
     if (!scene || !modelRef.current) return;
@@ -1034,10 +978,445 @@ function VehicleModel({
   );
 }
 
+// ─── Generic vehicle model (works for ANY GLB — Thar, Mercedes, Chevy, etc.) ─
+function GenericVehicleModel({
+  modelUrl,
+  config,
+  viewMode,
+  clearanceOffset,
+  children,
+}: {
+  modelUrl: string;
+  config: VehicleConfiguration;
+  viewMode: "vehicle" | "engineering";
+  clearanceOffset: number;
+  children?: React.ReactNode;
+}) {
+  const { scene } = useGLTF(modelUrl);
+  const groupRef = useRef<THREE.Group>(null!);
+  // Use a state flag so React re-renders after setup → triggers the dependent effects
+  const [setupDone, setSetupDone] = useState(false);
+
+  // Computed material params
+  const roughness = config.paint_finish === "matte" ? 0.72 : config.paint_finish === "gloss" ? 0.10 : 0.20;
+  const metalness = config.paint_finish === "matte" ? 0.06 : 0.88;
+  const clearcoat = config.paint_finish === "gloss" ? 1.0  : config.paint_finish === "metallic" ? 0.55 : 0.0;
+  const glassOpac = viewMode === "engineering" ? 0.04 : Math.max(0.08, 0.42 - config.window_tint / 130);
+  const seatColor = UPHOLSTERY_COLORS[config.upholstery] ?? "#141418";
+
+  // --- Step 1: One-time scene setup – auto-fit, floor the model, and cache mesh roles ---
+  useEffect(() => {
+    if (!scene || !groupRef.current) return;
+    // Reset setup flag when model changes
+    setSetupDone(false);
+
+    // Disable frustum culling so nothing disappears at odd angles
+    scene.traverse((obj) => {
+      if (obj instanceof THREE.Mesh) obj.frustumCulled = false;
+    });
+
+    // Reset any previous transforms before calculating bounding box
+    groupRef.current.scale.setScalar(1);
+    groupRef.current.position.set(0, 0, 0);
+    scene.position.set(0, 0, 0);
+    scene.rotation.set(0, 0, 0);
+    scene.scale.set(1, 1, 1);
+
+    // Force update of matrix world so we measure raw coordinates
+    groupRef.current.updateMatrixWorld(true);
+
+    // Prune floating meshes that are far away from the main car body in the raw GLB model
+    const isBodyCandidate = (obj: THREE.Mesh) => {
+      const n = obj.name.toLowerCase();
+      const firstMat = Array.isArray(obj.material) ? obj.material[0] : obj.material;
+      const matName = (firstMat as THREE.MeshStandardMaterial)?.name?.toLowerCase() ?? "";
+
+      if (
+        n.includes("ground") || 
+        n.includes("shadow") || 
+        n.includes("floor") || 
+        n.includes("plane") ||
+        n.includes("env")
+      ) {
+        return false;
+      }
+
+      const matchesWheelOrPart = [
+        "wheel", "tire", "tyre", "rim", "felna", "tocak", "felge", "jante", "ruota", "guma",
+        "axle", "suspension", "brake", "caliper", "hub", "steering", 
+        "shaft", "drive", "mech", "joint", "strut", "arm", "disc", "rod", "link", "spring", "knuckle", "spindle",
+        "kocnic", "diskov", "viljusk", "amortizer", "spona", "poluosovin", "glavcin"
+      ].some(k => n.includes(k) || matName.includes(k));
+
+      return !matchesWheelOrPart;
+    };
+
+    const bodyBox = new THREE.Box3();
+    let hasBody = false;
+    scene.traverse((obj) => {
+      if (obj instanceof THREE.Mesh && isBodyCandidate(obj)) {
+        bodyBox.expandByObject(obj);
+        hasBody = true;
+      }
+    });
+
+    if (hasBody) {
+      const bodyCenter = bodyBox.getCenter(new THREE.Vector3());
+      const bodySize = bodyBox.getSize(new THREE.Vector3());
+      const bodyMaxDim = Math.max(bodySize.x, bodySize.y, bodySize.z);
+      const pruneThreshold = bodyMaxDim * 0.62;
+
+      scene.traverse((obj) => {
+        if (obj instanceof THREE.Mesh) {
+          const n = obj.name.toLowerCase();
+          if (
+            n.includes("ground") || 
+            n.includes("shadow") || 
+            n.includes("floor") || 
+            n.includes("plane") ||
+            n.includes("env")
+          ) {
+            return;
+          }
+
+          const objCenter = new THREE.Vector3();
+          if (obj.geometry) {
+            obj.geometry.computeBoundingBox();
+            if (obj.geometry.boundingBox) {
+              const localCenter = obj.geometry.boundingBox.getCenter(new THREE.Vector3());
+              obj.localToWorld(localCenter);
+              objCenter.copy(localCenter);
+            } else {
+              obj.getWorldPosition(objCenter);
+            }
+          } else {
+            obj.getWorldPosition(objCenter);
+          }
+
+          const dist = objCenter.distanceTo(bodyCenter);
+          if (dist > pruneThreshold) {
+            obj.visible = false;
+            console.log(`AUTOFORGE_PRUNE: Pruned floating component: ${obj.name} at distance ${dist.toFixed(4)} (threshold ${pruneThreshold.toFixed(4)})`);
+          }
+        }
+      });
+
+      // Force update of matrix world after visibility changes
+      groupRef.current.updateMatrixWorld(true);
+    }
+
+    // Compute bounding box using only visible car meshes (ignoring environment/floor planes)
+    const box = new THREE.Box3();
+    let hasMesh = false;
+    scene.traverse((obj) => {
+      if (obj instanceof THREE.Mesh && obj.visible) {
+        const name = obj.name.toLowerCase();
+        if (
+          name.includes("ground") || 
+          name.includes("shadow") || 
+          name.includes("floor") || 
+          name.includes("plane") ||
+          name.includes("env")
+        ) {
+          return;
+        }
+        box.expandByObject(obj);
+        hasMesh = true;
+      }
+    });
+
+    if (!hasMesh) {
+      box.setFromObject(scene);
+    }
+
+    const size = box.getSize(new THREE.Vector3());
+    const center = box.getCenter(new THREE.Vector3());
+
+    // Scale so the longest dimension = 3.2 units (standard vehicle size)
+    const maxDim = Math.max(size.x, size.y, size.z);
+    const scale = maxDim > 0 ? 3.2 / maxDim : 1;
+
+    groupRef.current.scale.setScalar(scale);
+
+    // Center the scene inside the parent group (so OrbitControls target is perfectly aligned)
+    scene.position.set(-center.x, -center.y, -center.z);
+
+    // Force update of world matrix so Box3 measures the scaled/shifted scene correctly
+    groupRef.current.updateMatrixWorld(true);
+
+    // Now re-measure the group to lift it exactly to Y=0
+    const scaledBox = new THREE.Box3().setFromObject(groupRef.current);
+    console.log(`AUTOFORGE_THAR_SETUP_STR size=${size.x.toFixed(4)},${size.y.toFixed(4)},${size.z.toFixed(4)} center=${center.x.toFixed(4)},${center.y.toFixed(4)},${center.z.toFixed(4)} scale=${scale.toFixed(4)} minY=${scaledBox.min.y.toFixed(4)} maxY=${scaledBox.max.y.toFixed(4)}`);
+    groupRef.current.position.set(0, -scaledBox.min.y, 0);
+
+    // Cache per-mesh roles using generic keyword matching on name + material name
+    const carCenter = hasBody ? bodyBox.getCenter(new THREE.Vector3()) : center;
+    const carSize = hasBody ? bodyBox.getSize(new THREE.Vector3()) : size;
+
+    scene.traverse((obj) => {
+      if (obj.userData.origY === undefined) {
+        obj.userData.origY = obj.position.y;
+      }
+
+      if (!(obj instanceof THREE.Mesh)) return;
+      const n = obj.name.toLowerCase();
+      const firstMat = Array.isArray(obj.material) ? obj.material[0] : obj.material;
+      const matName = (firstMat as THREE.MeshStandardMaterial)?.name?.toLowerCase() ?? "";
+
+      // Exclude axles, brakes, steering, and suspension parts from being treated as wheels
+      const isExcluded = [
+        "axle", "suspension", "brake", "caliper", "hub", "steering", 
+        "shaft", "drive", "mech", "joint", "strut", "arm", "disc", "rod", "link", "spring", "knuckle", "spindle",
+        "well", "house", "arch", "panel", "bay",
+        "kocnic", "diskov", "viljusk", "amortizer", "spona", "poluosovin", "glavcin"
+      ].some(k => n.includes(k) || matName.includes(k));
+
+      const matchesWheel = GENERIC_WHEEL_KEYWORDS.some(k => n.includes(k) || matName.includes(k));
+      
+      // Calculate position relative to the centered car center to verify it's on the side (left/right)
+      const worldPos = new THREE.Vector3();
+      obj.getWorldPosition(worldPos);
+      const sceneLocalPos = scene.worldToLocal(worldPos);
+      const relPos = sceneLocalPos.clone().sub(carCenter);
+      
+      const isXLength = carSize.x > carSize.z;
+      const isSideWheel = isXLength ? (Math.abs(relPos.z) > 0.4) : (Math.abs(relPos.x) > 0.4);
+
+      obj.userData.isGlass = GENERIC_GLASS_KEYWORDS.some(k => n.includes(k) || matName.includes(k));
+      obj.userData.isWheel = matchesWheel && isSideWheel && !isExcluded;
+      obj.userData.isTire  = obj.userData.isWheel && GENERIC_TIRE_KEYWORDS.some(k => n.includes(k) || matName.includes(k));
+      obj.userData.isSeat  = GENERIC_SEAT_KEYWORDS.some(k  => n.includes(k) || matName.includes(k));
+    });
+
+    // --- Self-healing wheel duplicator: ensure wheels exist in all 4 quadrants ---
+    const wheels: THREE.Mesh[] = [];
+    scene.traverse((obj) => {
+      if (obj instanceof THREE.Mesh && obj.userData.isWheel) {
+        wheels.push(obj);
+      }
+    });
+
+    if (wheels.length > 0) {
+      // Get coordinates relative to the car's geometric center for each wheel to determine its quadrant accurately
+      const wheelPosMap = new Map<THREE.Mesh, THREE.Vector3>();
+      wheels.forEach((w) => {
+        const worldPos = new THREE.Vector3();
+        w.getWorldPosition(worldPos);
+        const localPos = scene.worldToLocal(worldPos);
+        const relPos = localPos.clone().sub(carCenter);
+        wheelPosMap.set(w, relPos);
+      });
+
+      // Get scene's world scale to cancel out double-scaling when adding clones directly to scene
+      const sceneScale = new THREE.Vector3();
+      scene.getWorldScale(sceneScale);
+
+      // Check for wheels in each of the 4 quadrants (Front-Right, Front-Left, Rear-Right, Rear-Left)
+      const hasFR = wheels.some(w => { const p = wheelPosMap.get(w)!; return p.x > 0.1 && p.z > 0.1; });
+      const hasFL = wheels.some(w => { const p = wheelPosMap.get(w)!; return p.x < -0.1 && p.z > 0.1; });
+      const hasRR = wheels.some(w => { const p = wheelPosMap.get(w)!; return p.x > 0.1 && p.z < -0.1; });
+      const hasRL = wheels.some(w => { const p = wheelPosMap.get(w)!; return p.x < -0.1 && p.z < -0.1; });
+
+      console.log("AUTOFORGE_WHEEL_QUADRANTS:", { hasFR, hasFL, hasRR, hasRL });
+
+      // If any quadrant is missing wheels, clone the assembly from the quadrant that does have wheels
+      const sourceWheel = wheels[0];
+      if (sourceWheel) {
+        const sourceLocal = wheelPosMap.get(sourceWheel)!;
+        const sourceCornerX = sourceLocal.x > 0 ? 1 : -1;
+        const sourceCornerZ = sourceLocal.z > 0 ? 1 : -1;
+
+        // Gather all meshes in the same quadrant as our source template (e.g. rim + tire meshes)
+        const sourceAssembly = wheels.filter(w => {
+          const p = wheelPosMap.get(w)!;
+          return (p.x > 0 ? 1 : -1) === sourceCornerX && 
+                 (p.z > 0 ? 1 : -1) === sourceCornerZ;
+        });
+
+        const duplicateTo = (targetSignX: number, targetSignZ: number) => {
+          sourceAssembly.forEach((w) => {
+            const clone = w.clone();
+            clone.name = `${w.name}_cloned_${targetSignX > 0 ? "R" : "L"}${targetSignZ > 0 ? "F" : "R"}`;
+            
+            // Get position, rotation, and scale of source wheel in world space
+            const worldPos = new THREE.Vector3();
+            const worldScale = new THREE.Vector3();
+            const worldQuat = new THREE.Quaternion();
+            
+            w.getWorldPosition(worldPos);
+            w.getWorldScale(worldScale);
+            w.getWorldQuaternion(worldQuat);
+            
+            // Convert to scene's local space
+            scene.worldToLocal(worldPos);
+            
+            // Subtract carCenter to get relative position
+            const relativePos = worldPos.clone().sub(carCenter);
+            
+            // Mirror the relative coordinates
+            const mirroredRelativePos = new THREE.Vector3(
+              relativePos.x * (sourceCornerX * targetSignX),
+              relativePos.y,
+              relativePos.z * (sourceCornerZ * targetSignZ)
+            );
+            
+            // Add carCenter back to get the final scene-local coordinates
+            clone.position.copy(mirroredRelativePos).add(carCenter);
+            
+            // Apply scale and rotation, dividing by sceneScale to avoid double-scaling
+            clone.scale.copy(worldScale).divide(sceneScale);
+            clone.quaternion.copy(worldQuat);
+            
+            // Mirror scale X if we are flipping left/right
+            if (sourceCornerX !== targetSignX) {
+              clone.scale.x = -clone.scale.x;
+            }
+            
+            clone.userData.origY = clone.position.y;
+            clone.userData.isWheel = true;
+            
+            // Add clone directly to scene (root of the model) to bypass nested parent groups
+            scene.add(clone);
+          });
+        };
+
+        if (!hasFR) duplicateTo(1, 1);
+        if (!hasFL) duplicateTo(-1, 1);
+        if (!hasRR) duplicateTo(1, -1);
+        if (!hasRL) duplicateTo(-1, -1);
+      }
+    }
+
+    // Mark wheel ancestors so clearance animation doesn't shift them
+    scene.traverse((obj) => {
+      if (obj instanceof THREE.Mesh && obj.userData.isWheel) {
+        let parent = obj.parent;
+        while (parent && parent !== scene) {
+          parent.userData.hasWheelChildren = true;
+          parent = parent.parent;
+        }
+      }
+    });
+
+    setSetupDone(true);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [scene]);
+
+  // --- Step 2: Apply ground clearance offset (raise body, keep wheels on ground) ---
+  useEffect(() => {
+    if (!scene || !setupDone) return;
+    scene.traverse((obj) => {
+      if (obj === scene) return;
+      // Skip wheels and any ancestors of wheels to keep them firmly on the floor
+      if (obj.userData.isWheel || obj.userData.hasWheelChildren) return;
+
+      // To avoid double-shifting nested objects, check if an ancestor is already being shifted
+      let parentIsShifted = false;
+      let p = obj.parent;
+      while (p && p !== scene) {
+        if (!p.userData.isWheel && !p.userData.hasWheelChildren) {
+          parentIsShifted = true;
+          break;
+        }
+        p = p.parent;
+      }
+
+      const origY = obj.userData.origY ?? obj.position.y;
+      if (parentIsShifted) {
+        obj.position.y = origY;
+      } else {
+        obj.position.y = origY + clearanceOffset;
+      }
+    });
+  }, [scene, setupDone, clearanceOffset]);
+
+  // --- Step 3: Apply paint / material colors ---
+  useEffect(() => {
+    if (!scene || !setupDone) return;
+    scene.traverse((obj) => {
+      if (!(obj instanceof THREE.Mesh)) return;
+
+      const mats = Array.isArray(obj.material) ? obj.material : [obj.material];
+      mats.forEach((mat) => {
+        if (!(mat instanceof THREE.MeshStandardMaterial || mat instanceof THREE.MeshPhysicalMaterial)) return;
+
+        if (obj.userData.isGlass) {
+          mat.transparent = true;
+          mat.opacity = viewMode === "engineering" ? 0.02 : glassOpac;
+          mat.roughness = 0.05;
+          mat.metalness = 0.1;
+          mat.depthWrite = false;
+        } else if (obj.userData.isWheel) {
+          mat.transparent = viewMode === "engineering";
+          mat.opacity = viewMode === "engineering" ? 0.05 : 1.0;
+          mat.depthWrite = viewMode !== "engineering";
+
+          console.log("AUTOFORGE_WHEEL_COLORING:", obj.name, mat.name, "isTire=", !!obj.userData.isTire);
+
+          if (obj.userData.isTire) {
+            // Apply high-quality dark rubber look for tire meshes
+            mat.color.set("#141416");
+            mat.roughness = viewMode === "engineering" ? 0.95 : 0.88;
+            mat.metalness = viewMode === "engineering" ? 0.05 : 0.05;
+          } else {
+            // Apply clean alloy silver / metallic look for rims
+            mat.color.set("#d1d5db");
+            mat.roughness = viewMode === "engineering" ? 0.95 : 0.22;
+            mat.metalness = viewMode === "engineering" ? 0.05 : 0.85;
+          }
+        } else if (obj.userData.isSeat) {
+          mat.color.set(seatColor);
+          mat.transparent = viewMode === "engineering";
+          mat.opacity = viewMode === "engineering" ? 0.0 : 1.0;
+          mat.depthWrite = viewMode !== "engineering";
+        } else {
+          // Body paint — apply color
+          mat.color.set(config.color);
+          mat.roughness  = viewMode === "engineering" ? 0.95 : roughness;
+          mat.metalness  = viewMode === "engineering" ? 0.05 : metalness;
+          mat.transparent = viewMode === "engineering";
+          mat.opacity    = viewMode === "engineering" ? 0.05 : 1.0;
+          mat.depthWrite = viewMode !== "engineering";
+          if (mat instanceof THREE.MeshPhysicalMaterial) {
+            mat.clearcoat = viewMode === "engineering" ? 0 : clearcoat;
+          }
+        }
+        mat.needsUpdate = true;
+      });
+    });
+  }, [scene, setupDone, config.color, viewMode, roughness, metalness, clearcoat, glassOpac, seatColor]);
+
+  return (
+    <group ref={groupRef} castShadow receiveShadow>
+      <primitive object={scene} />
+      {setupDone && (
+        <group position={scene.position}>
+          {children}
+        </group>
+      )}
+    </group>
+  );
+}
+
+
+// ─── Dispatcher: Route to correct model component based on URL ───────────────
+function VehicleModel(props: {
+  modelUrl: string;
+  config: VehicleConfiguration;
+  viewMode: "vehicle" | "engineering";
+  clearanceOffset: number;
+  children?: React.ReactNode;
+}) {
+  const isRangeRover = props.modelUrl.includes("range-rover");
+  if (isRangeRover) return <RangeRoverModel {...props} />;
+  return <GenericVehicleModel {...props} />;
+}
+
 useGLTF.preload("/models/range-rover-suv.glb");
 useGLTF.preload("/models/mahindra-thar.glb");
 useGLTF.preload("/models/mercedes-amg.glb");
 useGLTF.preload("/models/chevy-suv.glb");
+
 
 // ─── Loading placeholder ─────────────────────────────────────────────────────
 function Loader() {

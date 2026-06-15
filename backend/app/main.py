@@ -21,17 +21,34 @@ async def lifespan(_: FastAPI):
 
 
 app = FastAPI(title="AutoForge AI API", version="0.1.0", lifespan=lifespan)
-# Compute allowed origins from env (comma‑separated) or fallback to dev origins
+# Compute allowed origins from env (comma‑separated)
 env_origins = os.getenv("ALLOWED_ORIGINS")
 if env_origins:
     origins = [o.strip() for o in env_origins.split(",")]
 else:
-    origins = [
-        "http://localhost:3000",
-        "http://127.0.0.1:3000",
-        "http://localhost:3001",
-        "http://127.0.0.1:3001",
-    ]
+    origins = []
+
+# Always allow local development and production URLs for seamless local/prod testing
+local_dev_origins = [
+    "http://localhost:3000",
+    "http://127.0.0.1:3000",
+    "http://localhost:3001",
+    "http://127.0.0.1:3001",
+    "https://auto-forge-ai.vercel.app",
+]
+
+for origin in local_dev_origins:
+    if origin not in origins:
+        origins.append(origin)
+
+# CORSMiddleware doesn't allow allow_origins=["*"] when allow_credentials=True.
+# If wildcard is set, replace it with the explicit allowed origins list.
+if "*" in origins:
+    origins = [o for o in origins if o != "*"]
+    for origin in local_dev_origins:
+        if origin not in origins:
+            origins.append(origin)
+
 # Log the origins for debugging
 print("[CORS] Allowed origins:", origins)
 

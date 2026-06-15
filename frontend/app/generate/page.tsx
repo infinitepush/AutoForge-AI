@@ -4,7 +4,7 @@ import { CheckCircle2, CircleDot, Loader2 } from "lucide-react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Suspense, useEffect, useState } from "react";
 import { Brand } from "@/components/Brand";
-import { generateVehicle } from "@/lib/api";
+import { generateVehicle, API_URL } from "@/lib/api";
 
 const STEPS = [
   { label: "Understanding design intent",     detail: "Parsing natural language constraints…" },
@@ -156,7 +156,7 @@ function GenerationInner() {
             <div className="mb-1 text-xs font-semibold text-red-400 uppercase tracking-wide">Backend error</div>
             <div className="text-sm text-red-300/80">{error}</div>
             <div className="mt-3 text-xs text-white/30">
-              Make sure the FastAPI backend is running on <code className="text-white/50">{process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000"}</code>
+              Make sure the FastAPI backend is running on <code className="text-white/50">{API_URL}</code>
             </div>
           </div>
         )}
