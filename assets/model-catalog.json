@@ -3,36 +3,36 @@
     "id": "range-rover-suv",
     "name": "Range Rover Sport",
     "vehicle_type": "SUV",
-    "source": "embedded in autoforge-viewer-v2.html",
     "public_model": "/models/range-rover-suv.glb",
-    "tags": ["luxury", "family", "electric", "urban", "offroad"],
-    "base_price": 74500
+    "tags": ["luxury", "premium", "executive", "vip", "flagship", "comfort", "elegant", "british"],
+    "base_price": 74500,
+    "intent_keywords": ["luxury", "premium", "executive", "vip", "flagship", "comfort", "elegant", "range rover", "british"]
   },
   {
     "id": "mahindra-thar",
     "name": "Mahindra Thar",
     "vehicle_type": "SUV",
-    "source": "C:/Users/LENOVO/Desktop/Mahindra Thar 3D Model.blend",
-    "public_model": "/models/range-rover-suv.glb",
-    "tags": ["offroad", "rugged", "adventure"],
-    "base_price": 42000
+    "public_model": "/models/mahindra-thar.glb",
+    "tags": ["offroad", "rugged", "adventure", "terrain", "4x4", "mountain", "expedition"],
+    "base_price": 32000,
+    "intent_keywords": ["offroad", "off-road", "rugged", "adventure", "terrain", "mountain", "himalayan", "expedition", "4x4", "mud", "trail", "exploration", "jungle", "rocky", "thar"]
   },
   {
-    "id": "mercedes-sedan",
-    "name": "Mercedes Sedan",
-    "vehicle_type": "Sedan",
-    "source": "C:/Users/LENOVO/Desktop/final mercedes.blend",
-    "public_model": "/models/range-rover-suv.glb",
-    "tags": ["luxury", "futuristic", "executive", "electric"],
-    "base_price": 74500
+    "id": "mercedes-amg",
+    "name": "Mercedes AMG",
+    "vehicle_type": "SUV",
+    "public_model": "/models/mercedes-amg.glb",
+    "tags": ["luxury", "urban", "executive", "smart", "city", "corporate", "amg"],
+    "base_price": 82000,
+    "intent_keywords": ["city", "urban", "smart", "corporate", "business", "amg", "mercedes", "executive city", "sleek", "modern executive", "street"]
   },
   {
-    "id": "rover-sports",
-    "name": "Range Rover SE",
-    "vehicle_type": "Sports Car",
-    "source": "C:/Users/LENOVO/Desktop/Rover SE.blend",
-    "public_model": "/models/range-rover-suv.glb",
-    "tags": ["sports", "aggressive", "performance"],
-    "base_price": 96500
+    "id": "chevy-suv",
+    "name": "Chevrolet SUV",
+    "vehicle_type": "SUV",
+    "public_model": "/models/chevy-suv.glb",
+    "tags": ["family", "affordable", "practical", "daily", "commute", "spacious"],
+    "base_price": 48000,
+    "intent_keywords": ["family", "affordable", "daily", "commute", "practical", "spacious", "budget", "everyday", "kids", "school", "economic"]
   }
 ]

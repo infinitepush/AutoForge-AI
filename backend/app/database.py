@@ -24,6 +24,7 @@ class VehicleProject(Base):
     model_name: Mapped[str] = mapped_column(String(100))
     base_price: Mapped[int]
     extraction_mode: Mapped[str] = mapped_column(String(30))
+    selection_reason: Mapped[str] = mapped_column(String(500), default="")
     created_at: Mapped[object] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
 

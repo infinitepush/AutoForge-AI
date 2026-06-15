@@ -21,7 +21,7 @@ function GenerationInner() {
   const [active, setActive] = useState(0);
   const [error, setError] = useState("");
   const [done, setDone]   = useState(false);
-  const [result, setResult] = useState<{ vehicle_type?: string; powertrain?: string; model_name?: string } | null>(null);
+  const [result, setResult] = useState<{ vehicle_type?: string; powertrain?: string; model_name?: string; selection_reason?: string; terrain?: string } | null>(null);
 
   useEffect(() => {
     // Animated step progress (cosmetic)
@@ -34,9 +34,11 @@ function GenerationInner() {
       .then((project) => {
         clearInterval(timer);
         setResult({
-          vehicle_type: project.configuration.vehicle_type,
-          powertrain:   project.configuration.powertrain,
-          model_name:   project.model_name,
+          vehicle_type:     project.configuration.vehicle_type,
+          powertrain:       project.configuration.powertrain,
+          model_name:       project.model_name,
+          selection_reason: project.selection_reason,
+          terrain:          project.configuration.terrain_mode,
         });
         setActive(STEPS.length - 1);
         setDone(true);
@@ -132,11 +134,18 @@ function GenerationInner() {
         {/* Result preview */}
         {result && (
           <div className="mt-6 w-full rounded-xl border border-emerald-500/20 bg-emerald-500/[.07] px-5 py-4 text-left">
-            <div className="label-sm text-emerald-400/70 mb-2">Extracted configuration</div>
-            <div className="font-mono text-xs leading-6 text-emerald-300/70">
-              <div>Type: {result.vehicle_type}</div>
-              <div>Powertrain: {result.powertrain}</div>
-              <div>Model: {result.model_name}</div>
+            <div className="label-sm text-emerald-400/70 mb-3">✦ AI Selected Platform</div>
+            <div className="flex items-center gap-2 mb-2">
+              <span className="text-emerald-400 text-sm">✓</span>
+              <span className="text-white font-semibold text-sm">{result.model_name}</span>
+            </div>
+            {result.selection_reason && (
+              <div className="text-[10px] text-white/50 mb-3 pl-5">{result.selection_reason}</div>
+            )}
+            <div className="border-t border-white/[.06] pt-3 font-mono text-xs leading-6 text-emerald-300/70">
+              {result.vehicle_type && <div>Type: {result.vehicle_type}</div>}
+              {result.terrain && <div>Mode: {result.terrain}</div>}
+              {result.powertrain && <div>Powertrain: {result.powertrain}</div>}
             </div>
           </div>
         )}

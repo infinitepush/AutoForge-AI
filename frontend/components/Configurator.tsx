@@ -15,9 +15,17 @@ import {
 } from "lucide-react";
 import { useMemo, useState } from "react";
 import { updateVehicle } from "@/lib/api";
-import { VehicleConfiguration, VehicleProject } from "@/lib/types";
+import { VehicleConfiguration, VehicleProject, CatalogEntry } from "@/lib/types";
 import { VehicleScene } from "./VehicleScene";
 import { jsPDF } from "jspdf";
+
+// ─── Vehicle catalog (mirrors assets/model-catalog.json) ────────────────────────
+const VEHICLE_CATALOG: CatalogEntry[] = [
+  { id: "range-rover-suv",  name: "Range Rover Sport",  vehicle_type: "SUV", public_model: "/models/range-rover-suv.glb",  tags: ["luxury", "premium"],    base_price: 74500 },
+  { id: "mahindra-thar",   name: "Mahindra Thar",       vehicle_type: "SUV", public_model: "/models/mahindra-thar.glb",   tags: ["offroad", "rugged"],    base_price: 32000 },
+  { id: "mercedes-amg",   name: "Mercedes AMG",         vehicle_type: "SUV", public_model: "/models/mercedes-amg.glb",   tags: ["urban", "executive"],   base_price: 82000 },
+  { id: "chevy-suv",      name: "Chevrolet SUV",         vehicle_type: "SUV", public_model: "/models/chevy-suv.glb",      tags: ["family", "practical"],  base_price: 48000 },
+];
 
 // ─── Constants ───────────────────────────────────────────────────────────────
 
@@ -203,6 +211,9 @@ export function Configurator({ initial }: { initial: VehicleProject }) {
   const [saved,       setSaved]       = useState(false);
   const [viewMode,    setViewMode]    = useState<"vehicle" | "engineering">("vehicle");
   const [focusedComponent, setFocusedComponent] = useState<string>("");
+  // Platform override state – allows user to switch the 3D model
+  const [selectedModelUrl, setSelectedModelUrl] = useState<string>(initial.model);
+  const [selectedModelName, setSelectedModelName] = useState<string>(initial.model_name);
 
   // Live performance stats from lookup table
   const perf = useMemo(() => {
@@ -466,7 +477,7 @@ export function Configurator({ initial }: { initial: VehicleProject }) {
         {/* ── 3D Viewport ── */}
         <section className="relative min-h-[45vh]">
           <VehicleScene
-            model={initial.model}
+            model={selectedModelUrl}
             config={config}
             environment={environment}
             cameraView={cameraView}
@@ -477,7 +488,7 @@ export function Configurator({ initial }: { initial: VehicleProject }) {
           {/* Top-left overlay */}
           <div className="pointer-events-none absolute left-7 top-7 select-none z-10">
             <div className="eyebrow mb-1.5 text-white/40">AutoForge AI / Digital Twin</div>
-            <div className="text-2xl font-semibold tracking-tight text-white">{initial.model_name}</div>
+            <div className="text-2xl font-semibold tracking-tight text-white">{selectedModelName}</div>
             <div className="mt-2.5 flex items-center gap-2">
               <span className="rounded-full bg-white/10 px-2.5 py-1 text-[10px] tracking-widest text-white/60 uppercase">
                 {config.vehicle_type}
@@ -557,9 +568,44 @@ export function Configurator({ initial }: { initial: VehicleProject }) {
           <header className="border-b border-white/[.06] bg-[#090b0f]/95 px-6 py-5 backdrop-blur-md">
             <div className="eyebrow mb-1 text-white/40">Configuration Platform</div>
             <h1 className="text-xl font-medium text-white tracking-tight">
-              Build {initial.model_name}
+              Build {selectedModelName}
             </h1>
             <p className="mt-1.5 text-xs leading-5 text-white/35 italic line-clamp-2">&ldquo;{initial.prompt}&rdquo;</p>
+
+            {/* AI Platform Selection banner */}
+            <div className="mt-4 rounded-xl border border-emerald-500/20 bg-emerald-500/[.06] p-3">
+              <div className="flex items-center gap-2 mb-2">
+                <span className="text-emerald-400 text-[10px] font-bold uppercase tracking-widest">✦ AI Selected Platform</span>
+              </div>
+              <div className="flex items-center gap-2 mb-1">
+                <span className="text-emerald-400 text-xs">✓</span>
+                <span className="text-white text-xs font-semibold">{initial.model_name}</span>
+              </div>
+              {initial.selection_reason && (
+                <div className="text-[10px] text-white/40 mb-3">{initial.selection_reason}</div>
+              )}
+              <div className="flex items-center gap-2">
+                <span className="text-[10px] text-white/40 shrink-0">Override:</span>
+                <select
+                  id="platform-override"
+                  value={selectedModelUrl}
+                  onChange={(e) => {
+                    const entry = VEHICLE_CATALOG.find(v => v.public_model === e.target.value);
+                    if (entry) {
+                      setSelectedModelUrl(entry.public_model);
+                      setSelectedModelName(entry.name);
+                    }
+                  }}
+                  className="flex-1 rounded-lg border border-white/10 bg-white/[.04] px-2 py-1.5 text-xs text-white/80 focus:border-[#ff5a3c]/50 focus:outline-none transition-colors"
+                >
+                  {VEHICLE_CATALOG.map((v) => (
+                    <option key={v.id} value={v.public_model} style={{ background: "#090b0f" }}>
+                      {v.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            </div>
           </header>
 
           {/* Sticky tabs */}

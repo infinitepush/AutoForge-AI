@@ -12,13 +12,33 @@ import { Suspense, useEffect, useRef, useState, memo } from "react";
 import * as THREE from "three";
 import { VehicleConfiguration } from "@/lib/types";
 
-// ─── Material name→role mapping (from the Range Rover GLB) ──────────────────
+// ─── Material name→role mapping (Range Rover specific) ──────────────────────
+// These are used for Range Rover. For other models we apply generic logic.
 const BODY_MATS   = ["Boja dzipa"];
 const RIM_MATS    = ["felna", "Zlatna", "Dzip_znak"];
 const GLASS_MATS  = ["staklo", "staklo_svijetla"];
 const SEAT_MATS   = ["Sjedista"];
 const BLACK_MATS  = ["Crna glosy", "glosy_resetka", "glosy"];
 const TIRE_MATS   = ["guma_procedural"];
+
+// Generic keyword patterns to detect role of ANY GLB mesh by name
+const GENERIC_GLASS_KEYWORDS = ["glass", "window", "windshield", "windscreen", "glazing", "windsheld", "staklo", "vidro", "cam", "verre", "glas"];
+const GENERIC_WHEEL_KEYWORDS = ["wheel", "tire", "tyre", "rim", "felna", "tocak", "felge", "jante", "ruota", "guma"];
+const GENERIC_SEAT_KEYWORDS  = ["seat", "interior", "upholstery", "leather", "fabric", "sjedista", "sedadlo"];
+const GENERIC_LIGHT_KEYWORDS = ["light", "lamp", "headlight", "taillight", "lens", "svijetlo", "phare"];
+
+function isGlassMesh(name: string, matName: string): boolean {
+  const n = (name + " " + matName).toLowerCase();
+  return GENERIC_GLASS_KEYWORDS.some(k => n.includes(k));
+}
+function isWheelMesh(name: string, matName: string): boolean {
+  const n = (name + " " + matName).toLowerCase();
+  return GENERIC_WHEEL_KEYWORDS.some(k => n.includes(k));
+}
+function isSeatMesh(name: string, matName: string): boolean {
+  const n = (name + " " + matName).toLowerCase();
+  return GENERIC_SEAT_KEYWORDS.some(k => n.includes(k));
+}
 
 const UPHOLSTERY_COLORS: Record<string, string> = {
   black:    "#141418",
@@ -476,8 +496,8 @@ function SeatRows({
   );
 }
 
-// ─── Model component ─────────────────────────────────────────────────────────
-function RangeRoverModel({
+// ─── Generic Model component (works for ANY GLB) ────────────────────────────
+function VehicleModel({
   modelUrl,
   config,
   viewMode,
@@ -757,6 +777,51 @@ function RangeRoverModel({
     });
   }, [scene, config.color, viewMode, roughness, metalness, clearcoat, glassOpac, rimColor, seatColor, trimColor]);
 
+  // ─── Generic material fallback (for non-Range Rover models) ────────────────
+  // Applies body color to all meshes that aren't glass / wheel / seat
+  useEffect(() => {
+    if (!scene) return;
+    scene.traverse((obj) => {
+      if (!(obj instanceof THREE.Mesh)) return;
+      const name = obj.name.toLowerCase();
+      const mats = Array.isArray(obj.material) ? obj.material : [obj.material];
+      mats.forEach((mat) => {
+        if (!(mat instanceof THREE.MeshStandardMaterial || mat instanceof THREE.MeshPhysicalMaterial)) return;
+        const matName = mat.name.toLowerCase();
+        // Only apply generic logic if NOT a named Range Rover material
+        const isNamedRoverMat = [...BODY_MATS, ...RIM_MATS, ...GLASS_MATS, ...SEAT_MATS, ...BLACK_MATS, ...TIRE_MATS].includes(mat.name);
+        if (isNamedRoverMat) return;
+
+        if (isGlassMesh(name, matName)) {
+          mat.transparent = true;
+          mat.opacity = viewMode === "engineering" ? 0.01 : glassOpac;
+          mat.roughness = 0.05;
+          mat.needsUpdate = true;
+        } else if (isWheelMesh(name, matName)) {
+          mat.opacity = viewMode === "engineering" ? 0.04 : 1.0;
+          mat.transparent = viewMode === "engineering";
+          mat.needsUpdate = true;
+        } else if (isSeatMesh(name, matName)) {
+          mat.color.set(seatColor);
+          mat.opacity = viewMode === "engineering" ? 0.0 : 1.0;
+          mat.transparent = viewMode === "engineering";
+          mat.needsUpdate = true;
+        } else {
+          // Treat as body paint
+          mat.color.set(config.color);
+          mat.roughness  = viewMode === "engineering" ? 0.95 : roughness;
+          mat.metalness  = viewMode === "engineering" ? 0.05 : metalness;
+          mat.transparent = viewMode === "engineering";
+          mat.opacity = viewMode === "engineering" ? 0.04 : 1.0;
+          if (mat instanceof THREE.MeshPhysicalMaterial) {
+            mat.clearcoat = viewMode === "engineering" ? 0 : clearcoat;
+          }
+          mat.needsUpdate = true;
+        }
+      });
+    });
+  }, [scene, config.color, viewMode, roughness, metalness, clearcoat, glassOpac, seatColor]);
+
   // Center model and set static details
   useEffect(() => {
     if (!scene || !modelRef.current) return;
@@ -970,6 +1035,9 @@ function RangeRoverModel({
 }
 
 useGLTF.preload("/models/range-rover-suv.glb");
+useGLTF.preload("/models/mahindra-thar.glb");
+useGLTF.preload("/models/mercedes-amg.glb");
+useGLTF.preload("/models/chevy-suv.glb");
 
 // ─── Loading placeholder ─────────────────────────────────────────────────────
 function Loader() {
@@ -1071,7 +1139,7 @@ export const VehicleScene = memo(function VehicleScene({
 
       {/* Real 3D model */}
       <Suspense fallback={<Loader />}>
-        <RangeRoverModel
+        <VehicleModel
           modelUrl={model}
           config={config}
           viewMode={viewMode}
@@ -1111,7 +1179,7 @@ export const VehicleScene = memo(function VehicleScene({
               />
             </group>
           )}
-        </RangeRoverModel>
+        </VehicleModel>
       </Suspense>
 
       <ContactShadows

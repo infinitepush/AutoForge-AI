@@ -61,6 +61,7 @@ def serialize(project: VehicleProject) -> VehicleProjectResponse:
         base_price=project.base_price,
         configuration=project.generated_json,
         extraction_mode=project.extraction_mode,
+        selection_reason=getattr(project, "selection_reason", ""),
     )
 
 
@@ -77,7 +78,7 @@ def health():
 @app.post("/generate", response_model=VehicleProjectResponse)
 def generate(payload: GenerateRequest, db: Session = Depends(get_db)):
     configuration, extraction_mode = extract_vehicle(payload.prompt)
-    asset = select_asset(configuration)
+    asset = select_asset(configuration, payload.prompt)
     project = VehicleProject(
         id=str(uuid4()),
         prompt=payload.prompt,
@@ -86,6 +87,7 @@ def generate(payload: GenerateRequest, db: Session = Depends(get_db)):
         model_name=asset["name"],
         base_price=asset["base_price"],
         extraction_mode=extraction_mode,
+        selection_reason=asset.get("selection_reason", ""),
     )
     db.add(project)
     db.commit()

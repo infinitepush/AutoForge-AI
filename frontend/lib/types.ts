@@ -41,4 +41,14 @@ export type VehicleProject = {
   base_price: number;
   configuration: VehicleConfiguration;
   extraction_mode: string;
+  selection_reason: string;
+};
+
+export type CatalogEntry = {
+  id: string;
+  name: string;
+  vehicle_type: string;
+  public_model: string;
+  tags: string[];
+  base_price: number;
 };

@@ -50,6 +50,7 @@ class VehicleProjectResponse(BaseModel):
     base_price: int
     configuration: VehicleConfiguration
     extraction_mode: str
+    selection_reason: str = ""
 
 
 class VehicleUpdateRequest(BaseModel):

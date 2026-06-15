@@ -72,7 +72,7 @@ def local_extract(prompt: str) -> VehicleConfiguration:
         "grey": "#6b7280", "gray": "#6b7280",
     }
     color = next((hex_value for name, hex_value in color_map.items() if name in value), "#192c46")
-    offroad = any(word in value for word in ("off-road", "offroad", "rugged", "terrain"))
+    offroad = any(word in value for word in ("off-road", "offroad", "rugged", "terrain", "mountain", "himalayan", "expedition", "4x4"))
     sport = any(word in value for word in ("sport", "aggressive", "performance"))
     defaults = {
         VehicleType.SUV:    (2950, 215),
@@ -186,10 +186,75 @@ def extract_vehicle(prompt: str) -> tuple[VehicleConfiguration, str]:
         return local_extract(prompt), "local-fallback"
 
 
-def select_asset(configuration: VehicleConfiguration) -> dict[str, Any]:
-    catalog = json.loads(CATALOG_PATH.read_text(encoding="utf-8"))
-    candidates = [item for item in catalog if item["vehicle_type"] == configuration.vehicle_type.value]
-    if configuration.vehicle_type == VehicleType.SUV and configuration.terrain_mode == "offroad":
-        return next(item for item in candidates if item["id"] == "mahindra-thar")
-    prompt_tags = {configuration.style.lower(), configuration.powertrain.lower()}
-    return max(candidates, key=lambda item: len(prompt_tags.intersection(set(item["tags"]))))
+# ---------------------------------------------------------------------------
+# Smart Platform Selection — keyword intent scoring
+# ---------------------------------------------------------------------------
+
+_REASON_TEMPLATES = {
+    "mahindra-thar":  "Off-road / rugged terrain intent detected",
+    "range-rover-suv": "Luxury / premium flagship intent detected",
+    "mercedes-amg":   "Urban executive / high-performance intent detected",
+    "chevy-suv":      "Family / practical daily-use intent detected",
+}
+
+
+def select_asset(configuration: VehicleConfiguration, prompt: str = "") -> dict[str, Any]:
+    """
+    Score each catalog vehicle against the user prompt keywords and 
+    configuration signals, then return the best-matching asset with 
+    a human-readable selection_reason.
+    """
+    catalog: list[dict] = json.loads(CATALOG_PATH.read_text(encoding="utf-8"))
+    prompt_lower = prompt.lower()
+
+    best_item = None
+    best_score = -1
+
+    for item in catalog:
+        score = 0
+        keywords: list[str] = item.get("intent_keywords", item.get("tags", []))
+        for kw in keywords:
+            if kw in prompt_lower:
+                score += 2  # direct prompt match is strongest signal
+
+        # Configuration-based bonus signals
+        if item["id"] == "mahindra-thar":
+            if configuration.terrain_mode == "offroad":
+                score += 4
+            if configuration.wheel_style == "offroad":
+                score += 2
+            if configuration.ground_clearance and configuration.ground_clearance >= 220:
+                score += 2
+
+        elif item["id"] == "range-rover-suv":
+            if configuration.style in ("luxury", "classic"):
+                score += 4
+            if configuration.suspension == "air":
+                score += 2
+            if configuration.wheel_style == "luxury":
+                score += 2
+
+        elif item["id"] == "mercedes-amg":
+            if configuration.style in ("futuristic", "aggressive", "modern"):
+                score += 3
+            if configuration.powertrain in ("EV", "Hybrid"):
+                score += 2
+            if configuration.terrain_mode == "sport":
+                score += 2
+
+        elif item["id"] == "chevy-suv":
+            if configuration.seats >= 5:
+                score += 2
+            if configuration.chassis_length == "long":
+                score += 2
+
+        if score > best_score:
+            best_score = score
+            best_item = item
+
+    # Fallback to Range Rover if nothing matched
+    if best_item is None:
+        best_item = next((i for i in catalog if i["id"] == "range-rover-suv"), catalog[0])
+
+    reason = _REASON_TEMPLATES.get(best_item["id"], f"Best match for your design intent")
+    return {**best_item, "selection_reason": reason}
